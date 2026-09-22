@@ -10,6 +10,7 @@ dependencies = [
     "flask-openapi3[swagger,swagger-ui]>=4.3.2",
     "flask-sqlalchemy>=3.1.1",
     "pytest>=9.1.1",
+    "python-jose[cryptography]>=3.5.0",
 ]
 
 [tool.pytest.ini_options]
