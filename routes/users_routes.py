@@ -8,7 +8,7 @@ from routes.auth_routes import _get_current_user
 users_bp = Blueprint("users", __name__, url_prefix="/api/users")
 
 
-@users_bp.route("/<int:user_id>", methods=["GET"])
+@users_bp.route("/<int:user_id>", methods=["GET"], strict_slashes=False)
 def get_user(user_id: int):
     user = db.session.get(User, user_id)
     if not user:
@@ -22,7 +22,7 @@ def get_user(user_id: int):
     )
 
 
-@users_bp.route("/me", methods=["GET"])
+@users_bp.route("/me", methods=["GET"], strict_slashes=False)
 def get_current_user():
     user = _get_current_user()
     if not user:
@@ -36,7 +36,7 @@ def get_current_user():
     )
 
 
-@users_bp.route("/me", methods=["PUT"])
+@users_bp.route("/me", methods=["PUT"], strict_slashes=False)
 def update_current_user():
     user = _get_current_user()
     if not user:
@@ -84,7 +84,7 @@ def update_current_user():
     return jsonify({"message": "Profile updated"})
 
 
-@users_bp.route("/me", methods=["DELETE"])
+@users_bp.route("/me", methods=["DELETE"], strict_slashes=False)
 def delete_current_user():
     user = _get_current_user()
     if not user:

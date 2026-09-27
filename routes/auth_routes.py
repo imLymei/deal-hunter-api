@@ -41,7 +41,7 @@ def _get_current_user() -> User | None:
     return user
 
 
-@auth_bp.route("/register", methods=["POST"])
+@auth_bp.route("/register", methods=["POST"], strict_slashes=False)
 def register():
     data = request.get_json()
     if not data:
@@ -90,7 +90,7 @@ def register():
     return resp, 201
 
 
-@auth_bp.route("/login", methods=["POST"])
+@auth_bp.route("/login", methods=["POST"], strict_slashes=False)
 def login():
     data = request.get_json()
     if not data:
@@ -128,14 +128,14 @@ def login():
     return resp
 
 
-@auth_bp.route("/logout", methods=["POST"])
+@auth_bp.route("/logout", methods=["POST"], strict_slashes=False)
 def logout():
     resp = make_response(jsonify({"message": "Logged out"}))
     resp.delete_cookie("jwt_token", samesite="Lax")
     return resp
 
 
-@auth_bp.route("/me", methods=["GET"])
+@auth_bp.route("/me", methods=["GET"], strict_slashes=False)
 def me():
     user = _get_current_user()
     if not user:
