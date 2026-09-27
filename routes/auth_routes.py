@@ -145,5 +145,6 @@ def me():
             "id": user.id,
             "username": user.username,
             "email": user.email,
+            "wishlist_public": user.wishlist_public,
         }
     )

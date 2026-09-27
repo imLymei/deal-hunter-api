@@ -10,12 +10,14 @@ logger = logging.getLogger(__name__)
 from sqlalchemy import select
 
 from models import db
+from models.user import User
 from models.wishlist_item import WishlistItem
 from routes.auth_routes import _get_current_user
 
 wishlist_bp = Blueprint("wishlist", __name__, url_prefix="/api/wishlist")
 
 CHEAPSHARK_SEARCH_URL = "https://www.cheapshark.com/api/1.0/games"
+CHEAPSHARK_GAME_URL = "https://www.cheapshark.com/api/1.0/games"
 
 
 def _search_cheapshark(query: str) -> list[dict] | None:
@@ -38,6 +40,32 @@ def _search_cheapshark(query: str) -> list[dict] | None:
         logger.error(f"CheapShark JSON decode error: {e}")
     except Exception as e:
         logger.error(f"CheapShark search error: {type(e).__name__}: {e}")
+
+    return None
+
+
+def _get_game_details(cheapshark_id: str) -> dict | None:
+    if not cheapshark_id or not cheapshark_id.strip():
+        return None
+
+    url = f"{CHEAPSHARK_GAME_URL}?gameID={urllib.parse.quote(cheapshark_id.strip())}"
+
+    try:
+        req = urllib.request.Request(
+            url, headers={"User-Agent": "DealHunter/1.0 (contact@example.com)"}
+        )
+        with urllib.request.urlopen(req, timeout=15) as response:
+            if response.status == 200:
+                data = json.loads(response.read().decode())
+                return data if isinstance(data, dict) else None
+    except urllib.error.URLError as e:
+        logger.error(f"CheapShark game lookup URLError for {cheapshark_id}: {e.reason}")
+    except json.JSONDecodeError as e:
+        logger.error(f"CheapShark JSON decode error for {cheapshark_id}: {e}")
+    except Exception as e:
+        logger.error(
+            f"CheapShark game lookup error for {cheapshark_id}: {type(e).__name__}: {e}"
+        )
 
     return None
 
@@ -212,5 +240,122 @@ def update_wishlist_item(item_id: int):
                 "thumb": item.thumb,
                 "notes": item.notes,
             },
+        }
+    )
+
+
+@wishlist_bp.route("/visibility", methods=["PUT"], strict_slashes=False)
+def update_visibility():
+    user = _get_current_user()
+    if not user:
+        return jsonify({"error": "Not authenticated"}), 401
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"errors": ["Request body is required"]}), 400
+
+    public = data.get("public")
+    if public is None or not isinstance(public, bool):
+        return jsonify(
+            {"errors": ["'public' boolean is required (true or false)"]}
+        ), 400
+
+    user.wishlist_public = public
+    db.session.commit()
+
+    return jsonify(
+        {
+            "message": "Visibility updated",
+            "wishlist_public": user.wishlist_public,
+        }
+    )
+
+
+@wishlist_bp.route("/user/<string:username>", methods=["GET"], strict_slashes=False)
+def get_user_wishlist(username: str):
+    target_user = db.session.execute(
+        select(User).where(User.username == username)
+    ).scalar_one_or_none()
+
+    if not target_user:
+        return jsonify({"error": "User not found"}), 404
+
+    if not target_user.wishlist_public:
+        return jsonify({"error": "This wishlist is private"}), 403
+
+    items = (
+        db.session.execute(
+            select(WishlistItem)
+            .where(WishlistItem.user_id == target_user.id)
+            .order_by(WishlistItem.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
+    return jsonify(
+        {
+            "username": target_user.username,
+            "items": [
+                {
+                    "id": item.id,
+                    "cheapshark_id": item.cheapshark_id,
+                    "title": item.title,
+                    "thumb": item.thumb,
+                    "notes": item.notes,
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in items
+            ],
+        }
+    )
+
+
+@wishlist_bp.route(
+    "/game/<string:cheapshark_id>", methods=["GET"], strict_slashes=False
+)
+def get_game_details(cheapshark_id: str):
+    details = _get_game_details(cheapshark_id)
+
+    if not details:
+        return jsonify({"error": "Game not found"}), 404
+
+    deals = details.get("deals", [])
+    cheapest_active = None
+    cheapest_price_val = float("inf")
+
+    for deal in deals:
+        try:
+            price = float(deal.get("price", "999"))
+            if price < cheapest_price_val and price < float(
+                deal.get("retailPrice", "0")
+            ):
+                cheapest_price_val = price
+                cheapest_active = {
+                    "storeID": deal.get("storeID"),
+                    "dealID": deal.get("dealID"),
+                    "price": deal.get("price"),
+                    "retailPrice": deal.get("retailPrice"),
+                    "savings": deal.get("savings"),
+                }
+        except (ValueError, TypeError):
+            continue
+
+    cheapest_ever = None
+    ever_data = details.get("cheapestPriceEver")
+    if ever_data:
+        try:
+            cheapest_ever = {
+                "price": ever_data.get("price", "0"),
+                "date": ever_data.get("date"),
+            }
+        except (ValueError, TypeError):
+            pass
+
+    return jsonify(
+        {
+            "info": details.get("info"),
+            "cheapestActiveDeal": cheapest_active,
+            "cheapestPriceEver": cheapest_ever,
         }
     )

@@ -13,6 +13,7 @@ class User(Base):
     username: Mapped[str] = mapped_column(unique=True, nullable=False)
     email: Mapped[str] = mapped_column(unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(nullable=False)
+    wishlist_public: Mapped[bool] = mapped_column(default=True, nullable=False)
 
     def set_password(self, password: str) -> Self:
         self.password_hash = generate_password_hash(password)
