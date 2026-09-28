@@ -14,6 +14,18 @@ from routes.wishlist_routes import wishlist_bp
 def create_app(database_uri: str | None = None) -> OpenAPI:
     app = OpenAPI(__name__, info=Info(title="DealHunter API", version="0.1.0"))
 
+    # Define cookie-based auth security scheme for Swagger UI
+    app.config["OPENAPI"] = {
+        "securitySchemes": {
+            "cookieAuth": {
+                "type": "apiKey",
+                "in": "cookie",
+                "name": "jwt_token",
+                "description": "JWT token stored in httpOnly cookie",
+            }
+        }
+    }
+
     if database_uri is not None:
         app.config["SQLALCHEMY_DATABASE_URI"] = database_uri
     else:
@@ -26,9 +38,9 @@ def create_app(database_uri: str | None = None) -> OpenAPI:
 
     CORS(app, supports_credentials=True, origins=["http://localhost:3000"])
 
-    app.register_blueprint(auth_bp)
-    app.register_blueprint(users_bp)
-    app.register_blueprint(wishlist_bp)
+    app.register_api(auth_bp)
+    app.register_api(users_bp)
+    app.register_api(wishlist_bp)
 
     @app.route("/", strict_slashes=False)
     def root() -> str:
